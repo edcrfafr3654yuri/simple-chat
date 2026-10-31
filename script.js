@@ -181,25 +181,37 @@ function startListeningToMessages() {
     list.forEach(m => {
       const div = document.createElement("div");
       div.className = "message";
+
       const time = new Date(m.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-      let html = `<span class="user">${escapeHtml(m.user)}</span>${escapeHtml(m.text)}<span class="time">${time}</span>`;
+      const userSpan = document.createElement("span");
+      userSpan.className = "user";
+      userSpan.textContent = m.user + " ";
+
+      const textNode = document.createTextNode(m.text);
+
+      const timeSpan = document.createElement("span");
+      timeSpan.className = "time";
+      timeSpan.textContent = " " + time;
+
+      div.appendChild(userSpan);
+      div.appendChild(textNode);
+      div.appendChild(timeSpan);
 
       // Owner can delete individual messages
       if (owner) {
-        html += ` <button class="msg-delete" data-id="${m.id}" title="Delete message">×</button>`;
+        const delBtn = document.createElement("button");
+        delBtn.className = "msg-delete";
+        delBtn.textContent = "×";
+        delBtn.title = "Delete message";
+        delBtn.onclick = function () {
+          deleteMessage(m.id);
+        };
+        div.appendChild(delBtn);
       }
 
-      div.innerHTML = html;
       box.appendChild(div);
     });
-
-    // Attach delete handlers
-    if (owner) {
-      box.querySelectorAll(".msg-delete").forEach(btn => {
-        btn.onclick = () => deleteMessage(btn.dataset.id);
-      });
-    }
 
     box.scrollTop = box.scrollHeight;
   });
@@ -212,7 +224,6 @@ function sendMessage() {
   const username = localStorage.getItem("chat_user");
   if (!username) return;
 
-  // Double-check mute status before sending
   db.ref("users/" + username).once("value")
     .then(userSnap => {
       if (!userSnap.exists()) {
@@ -244,21 +255,28 @@ function sendMessage() {
 function deleteMessage(id) {
   if (!isOwner()) return;
   if (!confirm("Delete this message?")) return;
+
   db.ref("messages/" + id).remove()
+    .then(() => {
+      // success - the listener will update the UI
+    })
     .catch(err => {
       console.error(err);
-      alert("Failed to delete message");
+      alert("Failed to delete message. Check Firebase rules.");
     });
 }
 
 function clearChat() {
   if (!isOwner()) return;
   if (!confirm("Clear ALL messages? This cannot be undone.")) return;
+
   db.ref("messages").remove()
-    .then(() => alert("Chat cleared"))
+    .then(() => {
+      alert("Chat cleared");
+    })
     .catch(err => {
       console.error(err);
-      alert("Failed to clear chat");
+      alert("Failed to clear chat. Check Firebase rules.");
     });
 }
 
@@ -289,17 +307,24 @@ function renderRequests() {
       const req = data[key];
       const div = document.createElement("div");
       div.className = "request-item";
-      div.innerHTML = `<span>${escapeHtml(req.username)}</span>`;
+
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = req.username;
+      div.appendChild(nameSpan);
 
       const accept = document.createElement("button");
       accept.textContent = "Accept";
       accept.className = "small-btn";
-      accept.onclick = () => acceptRequest(key, req);
+      accept.onclick = function () {
+        acceptRequest(key, req);
+      };
 
       const deny = document.createElement("button");
       deny.textContent = "Deny";
       deny.className = "small-btn secondary";
-      deny.onclick = () => denyRequest(key);
+      deny.onclick = function () {
+        denyRequest(key);
+      };
 
       div.appendChild(accept);
       div.appendChild(deny);
@@ -352,24 +377,33 @@ function renderUsers() {
       const u = data[name];
       const div = document.createElement("div");
       div.className = "user-item";
-      div.innerHTML = `<span>${escapeHtml(name)}${u.muted ? " (muted)" : ""}</span>`;
+
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = name + (u.muted ? " (muted)" : "");
+      div.appendChild(nameSpan);
 
       // Mute / Unmute
       const muteBtn = document.createElement("button");
       muteBtn.className = "small-btn secondary";
       if (u.muted) {
         muteBtn.textContent = "Unmute";
-        muteBtn.onclick = () => setMute(name, false);
+        muteBtn.onclick = function () {
+          setMute(name, false);
+        };
       } else {
         muteBtn.textContent = "Mute";
-        muteBtn.onclick = () => setMute(name, true);
+        muteBtn.onclick = function () {
+          setMute(name, true);
+        };
       }
 
       // Delete account
       const delBtn = document.createElement("button");
       delBtn.textContent = "Delete";
-      delBtn.className = "small-btn danger";
-      delBtn.onclick = () => deleteAccount(name);
+      delBtn.className = "small-btn secondary";
+      delBtn.onclick = function () {
+        deleteAccount(name);
+      };
 
       div.appendChild(muteBtn);
       div.appendChild(delBtn);
@@ -382,7 +416,6 @@ function setMute(username, muted) {
   db.ref("users/" + username).update({ muted: muted })
     .then(() => {
       renderUsers();
-      // Force update for the muted user if they are currently looking
     })
     .catch(err => {
       console.error(err);
@@ -391,7 +424,7 @@ function setMute(username, muted) {
 }
 
 function deleteAccount(username) {
-  if (!confirm(`Delete account "${username}"? They will no longer be able to log in.`)) return;
+  if (!confirm('Delete account "' + username + '"? They will no longer be able to log in.')) return;
 
   db.ref("users/" + username).remove()
     .then(() => {
@@ -400,7 +433,7 @@ function deleteAccount(username) {
     })
     .catch(err => {
       console.error(err);
-      alert("Failed to delete account");
+      alert("Failed to delete account. Check Firebase rules.");
     });
 }
 
@@ -434,12 +467,8 @@ $("logout-btn").addEventListener("click", logout);
 $("gear-btn").addEventListener("click", openOwnerMenu);
 $("close-modal").addEventListener("click", closeOwnerMenu);
 
-// Clear Chat button (added dynamically when menu opens)
-document.addEventListener("click", e => {
-  if (e.target && e.target.id === "clear-chat-btn") {
-    clearChat();
-  }
-});
+// Clear Chat button - attach directly
+$("clear-chat-btn").addEventListener("click", clearChat);
 
 // ---------- Init ----------
 ensureOwner()
