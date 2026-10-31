@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Chat</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen">
+      <h1>Simple Chat</h1>
+      <div class="form-box">
+        <input type="text" id="login-username" placeholder="Username" autocomplete="username">
+        <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
+        <button id="login-btn">Login</button>
+        <button id="request-btn" class="secondary">Request Account</button>
+      </div>
+      <p id="status" class="status"></p>
+    </div>
+
+    <!-- Request Account Screen -->
+    <div id="request-screen" class="screen hidden">
+      <h1>Request Account</h1>
+      <div class="form-box">
+        <input type="text" id="req-username" placeholder="Desired Username">
+        <input type="password" id="req-password" placeholder="Desired Password">
+        <button id="submit-request-btn">Submit Request</button>
+        <button id="back-to-login" class="secondary">Back to Login</button>
+      </div>
+    </div>
+
+    <!-- Chat Screen -->
+    <div id="chat-screen" class="screen hidden">
+      <div class="chat-header">
+        <span id="logged-in-as"></span>
+        <button id="gear-btn" class="icon-btn hidden" title="Owner Menu">⚙</button>
+        <button id="logout-btn" class="secondary">Logout</button>
+      </div>
+      <div id="messages" class="messages"></div>
+      <div class="chat-input">
+        <input type="text" id="msg-input" placeholder="Type a message..." autocomplete="off">
+        <button id="send-btn">Send</button>
+      </div>
+    </div>
+
+    <!-- Owner Menu Modal -->
+    <div id="owner-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2>Owner Menu</h2>
+        <button id="close-modal" class="secondary">Close</button>
+
+        <h3>Account Requests</h3>
+        <div id="requests-list"></div>
+
+        <h3>Mute Users</h3>
+        <div id="users-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase Compat (works better with local files) -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
