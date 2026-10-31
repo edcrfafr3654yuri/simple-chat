@@ -212,3 +212,44 @@ button:disabled {
   color: #666;
   font-size: 0.9rem;
 }
+
+/* Delete message button */
+.msg-delete {
+  background: none;
+  border: none;
+  color: #c00;
+  font-size: 1.1rem;
+  padding: 0 4px;
+  cursor: pointer;
+  vertical-align: middle;
+  line-height: 1;
+}
+.msg-delete:hover {
+  color: #f00;
+}
+
+/* Danger buttons */
+button.danger {
+  background: #c00;
+  border-color: #c00;
+  color: #fff;
+}
+button.danger:hover {
+  background: #a00;
+}
+
+.small-btn.danger {
+  background: #c00;
+  border-color: #c00;
+  color: #fff;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}
+.small-btn.danger:hover {
+  background: #a00;
+}
+
+#clear-chat-btn {
+  margin-top: 8px;
+  width: 100%;
+}

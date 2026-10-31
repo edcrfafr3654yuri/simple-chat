@@ -1,4 +1,4 @@
-// Simple Chat – Firebase Compat version (works with local files)
+// Simple Chat – Firebase Compat version
 
 const firebaseConfig = {
   apiKey: "AIzaSyC5zz1wlTu_jQSh0lt-m4M72Dewi8j4KnM",
@@ -38,6 +38,10 @@ function escapeHtml(str) {
 function setStatus(msg) {
   const el = $("status");
   if (el) el.textContent = msg || "";
+}
+
+function isOwner() {
+  return localStorage.getItem("chat_user") === OWNER_USERNAME;
 }
 
 // ---------- Ensure owner exists ----------
@@ -84,11 +88,26 @@ function tryLogin() {
 function enterChat(username) {
   show("chat-screen");
   $("logged-in-as").textContent = "Logged in as " + username;
-  const isOwner = username === OWNER_USERNAME;
-  $("gear-btn").classList.toggle("hidden", !isOwner);
+  $("gear-btn").classList.toggle("hidden", username !== OWNER_USERNAME);
   setStatus("");
   startListeningToMessages();
+  checkMuteStatus(username);
   $("msg-input").focus();
+}
+
+// Check mute and disable input if muted
+function checkMuteStatus(username) {
+  db.ref("users/" + username).on("value", snap => {
+    if (!snap.exists()) return;
+    const muted = snap.val().muted === true;
+    $("msg-input").disabled = muted;
+    $("send-btn").disabled = muted;
+    if (muted) {
+      $("msg-input").placeholder = "You are muted";
+    } else {
+      $("msg-input").placeholder = "Type a message...";
+    }
+  });
 }
 
 // ---------- Request Account ----------
@@ -157,13 +176,31 @@ function startListeningToMessages() {
 
     const box = $("messages");
     box.innerHTML = "";
+    const owner = isOwner();
+
     list.forEach(m => {
       const div = document.createElement("div");
       div.className = "message";
       const time = new Date(m.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      div.innerHTML = `<span class="user">${escapeHtml(m.user)}</span>${escapeHtml(m.text)}<span class="time">${time}</span>`;
+
+      let html = `<span class="user">${escapeHtml(m.user)}</span>${escapeHtml(m.text)}<span class="time">${time}</span>`;
+
+      // Owner can delete individual messages
+      if (owner) {
+        html += ` <button class="msg-delete" data-id="${m.id}" title="Delete message">×</button>`;
+      }
+
+      div.innerHTML = html;
       box.appendChild(div);
     });
+
+    // Attach delete handlers
+    if (owner) {
+      box.querySelectorAll(".msg-delete").forEach(btn => {
+        btn.onclick = () => deleteMessage(btn.dataset.id);
+      });
+    }
+
     box.scrollTop = box.scrollHeight;
   });
 }
@@ -175,10 +212,18 @@ function sendMessage() {
   const username = localStorage.getItem("chat_user");
   if (!username) return;
 
+  // Double-check mute status before sending
   db.ref("users/" + username).once("value")
     .then(userSnap => {
-      if (userSnap.exists() && userSnap.val().muted) {
+      if (!userSnap.exists()) {
+        alert("Account not found");
+        return;
+      }
+      if (userSnap.val().muted === true) {
         alert("You are muted and cannot send messages.");
+        $("msg-input").disabled = true;
+        $("send-btn").disabled = true;
+        $("msg-input").placeholder = "You are muted";
         return;
       }
 
@@ -193,6 +238,27 @@ function sendMessage() {
     .catch(err => {
       console.error(err);
       alert("Could not send message.");
+    });
+}
+
+function deleteMessage(id) {
+  if (!isOwner()) return;
+  if (!confirm("Delete this message?")) return;
+  db.ref("messages/" + id).remove()
+    .catch(err => {
+      console.error(err);
+      alert("Failed to delete message");
+    });
+}
+
+function clearChat() {
+  if (!isOwner()) return;
+  if (!confirm("Clear ALL messages? This cannot be undone.")) return;
+  db.ref("messages").remove()
+    .then(() => alert("Chat cleared"))
+    .catch(err => {
+      console.error(err);
+      alert("Failed to clear chat");
     });
 }
 
@@ -288,27 +354,53 @@ function renderUsers() {
       div.className = "user-item";
       div.innerHTML = `<span>${escapeHtml(name)}${u.muted ? " (muted)" : ""}</span>`;
 
-      const btn = document.createElement("button");
-      btn.className = "small-btn secondary";
+      // Mute / Unmute
+      const muteBtn = document.createElement("button");
+      muteBtn.className = "small-btn secondary";
       if (u.muted) {
-        btn.textContent = "Unmute";
-        btn.onclick = () => setMute(name, false);
+        muteBtn.textContent = "Unmute";
+        muteBtn.onclick = () => setMute(name, false);
       } else {
-        btn.textContent = "Mute";
-        btn.onclick = () => setMute(name, true);
+        muteBtn.textContent = "Mute";
+        muteBtn.onclick = () => setMute(name, true);
       }
-      div.appendChild(btn);
+
+      // Delete account
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "Delete";
+      delBtn.className = "small-btn danger";
+      delBtn.onclick = () => deleteAccount(name);
+
+      div.appendChild(muteBtn);
+      div.appendChild(delBtn);
       list.appendChild(div);
     });
   });
 }
 
 function setMute(username, muted) {
-  db.ref("users/" + username).update({ muted })
-    .then(() => renderUsers())
+  db.ref("users/" + username).update({ muted: muted })
+    .then(() => {
+      renderUsers();
+      // Force update for the muted user if they are currently looking
+    })
     .catch(err => {
       console.error(err);
       alert("Failed to update mute");
+    });
+}
+
+function deleteAccount(username) {
+  if (!confirm(`Delete account "${username}"? They will no longer be able to log in.`)) return;
+
+  db.ref("users/" + username).remove()
+    .then(() => {
+      renderUsers();
+      alert("Account deleted");
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Failed to delete account");
     });
 }
 
@@ -321,6 +413,8 @@ function logout() {
   }
   $("login-username").value = "";
   $("login-password").value = "";
+  $("msg-input").disabled = false;
+  $("send-btn").disabled = false;
   show("login-screen");
 }
 
@@ -339,6 +433,13 @@ $("msg-input").addEventListener("keydown", e => {
 $("logout-btn").addEventListener("click", logout);
 $("gear-btn").addEventListener("click", openOwnerMenu);
 $("close-modal").addEventListener("click", closeOwnerMenu);
+
+// Clear Chat button (added dynamically when menu opens)
+document.addEventListener("click", e => {
+  if (e.target && e.target.id === "clear-chat-btn") {
+    clearChat();
+  }
+});
 
 // ---------- Init ----------
 ensureOwner()
